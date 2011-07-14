@@ -91,7 +91,7 @@ void *malloc_aligned(size_t size, size_t align)
   int res;
   
 
-#if defined (__APPLE__)
+#if defined (__APPLE__) || defined(__MINGW32_VERSION)
   /* 
      presumably malloc on MACs always returns 
      a 16-byte aligned pointer
@@ -8111,6 +8111,10 @@ int main (int argc, char *argv[])
     i,
     countGTR = 0,
     countOtherModel = 0;
+#if defined(_USE_PTHREADS) && defined(WIN32)
+  //ptw32_processInitialize();
+#endif
+
 
 #if (defined(_USE_PTHREADS) && !defined(_PORTABLE_PTHREADS))  
   pinToCore(0);

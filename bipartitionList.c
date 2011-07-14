@@ -781,6 +781,7 @@ static void linkBipartitions(nodeptr p, tree *tr, branchInfo *bInf, int *counter
 
 
 
+  
 
 
 static void readSingleTree(tree *tr, char *fileName, analdef *adef, boolean readBranches, boolean readNodeLabels, boolean completeTree)
