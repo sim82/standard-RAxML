@@ -8084,7 +8084,7 @@ void testGapped(tree *tr)
 	ungappedTime;
       
       printBothOpen("Testing which likelihood implementation to use\n");
-      
+     #if 1 
       tr->useGappedImplementation = FALSE;
       ungappedTime = gettime();
       for(i = 0; i < 8; i++)
@@ -8101,7 +8101,10 @@ void testGapped(tree *tr)
       for(i = 0; i < 8; i++)
 	evaluateGenericInitrav(tr, tr->start);
       gappedTime = gettime() - gappedTime;
-      
+      #else
+	gappedTime = 1.0;
+	ungappedTime = 1.0;
+#endif
       
       printBothOpen("Standard Implementation full tree traversal time: %f\n", ungappedTime);
       

@@ -2573,6 +2573,8 @@ void modOpt(tree *tr, analdef *adef, boolean resetModel, double likelihoodEpsilo
 	}
 
       printAAmatrix(tr, fabs(currentLikelihood - tr->likelihood));    
+      //printf( "opt: %f -> %f\n", currentLikelihood, tr->likelihood );
+
     }
   while(fabs(currentLikelihood - tr->likelihood) > likelihoodEpsilon);  
   
