@@ -27,6 +27,7 @@
  *  Alexandros Stamatakis:"RAxML-VI-HPC: maximum likelihood-based phylogenetic analyses with thousands of taxa and mixed models".
  *  Bioinformatics 2006; doi: 10.1093/bioinformatics/btl446
  */
+/* -*- Mode: C; indent-tabs-mode: nil; c-basic-offset: 2; tab-width: 8 -*- */
 
 #ifdef WIN32
 #include <direct.h>
@@ -2733,6 +2734,8 @@ static void allocNodex (tree *tr)
 								    ((size_t)(tr->partitionData[model].states)) *
 								    sizeof(double), 16);		  		
 	
+      
+      
       undetermined = getUndetermined(tr->partitionData[model].dataType);
 
       for(j = 1; j <= tr->mxtips; j++)

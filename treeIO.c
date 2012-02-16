@@ -180,6 +180,10 @@ static double getBranchLength(tree *tr, int perGene, nodeptr p)
     z = 0.0,
     x = 0.0;
 
+
+
+  return p->z[0];
+
   assert(perGene != NO_BRANCHES);
 	      
   if(!tr->multiBranch)
