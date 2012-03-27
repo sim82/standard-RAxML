@@ -55,6 +55,7 @@ extern char run_id[128];
 extern FILE *INFILE;
 extern double masterTime;
 
+static boolean s_dump_spr = FALSE;
 
 
 boolean initrav (tree *tr, nodeptr p)
@@ -617,6 +618,25 @@ static void restoreTopologyOnly(tree *tr, bestlist *bt)
   hookup(p->next->next, p2, p2z, tr->numBranches);      
 }
 
+void printTipNamesRec( FILE *stream, tree *tr, nodeptr p ) {
+//   printf( "%p\n", p );
+  
+  assert( p != NULL );
+  if (isTip(p->number, tr->rdta->numsp) ) {
+      fprintf( stream, "%s ", tr->nameList[p->number] );
+  } else {
+      printTipNamesRec( stream, tr, p->next->back );
+      printTipNamesRec( stream, tr, p->next->next->back );
+  }
+}
+
+void printTipNames( FILE *stream, tree *tr, nodeptr p ) {
+  fputc( '(', stream );
+  printTipNamesRec( stream, tr, p );
+  fputs( ")\n", stream );
+  
+}
+
 
 boolean testInsertBIG (tree *tr, nodeptr p, nodeptr q)
 {
@@ -680,6 +700,14 @@ boolean testInsertBIG (tree *tr, nodeptr p, nodeptr q)
 	    }
 	}
       
+      if( s_dump_spr ) 
+      {
+	
+	printf( "@insertion %f ", tr->likelihood );
+	printTipNames( stdout, tr, q ); 
+      }
+      //printf( "@score %f\n", tr->likelihood );
+      
       if(tr->likelihood > tr->endLH)
 	{			  
 	  tr->insertNode = q;
@@ -717,6 +745,7 @@ boolean testInsertBIG (tree *tr, nodeptr p, nodeptr q)
 
 
 
+
  
 void addTraverseBIG(tree *tr, nodeptr p, nodeptr q, int mintrav, int maxtrav)
 {  
@@ -731,8 +760,11 @@ void addTraverseBIG(tree *tr, nodeptr p, nodeptr q, int mintrav, int maxtrav)
       addTraverseBIG(tr, p, q->next->back, mintrav, maxtrav);
       addTraverseBIG(tr, p, q->next->next->back, mintrav, maxtrav);    
     }
+  else
+    {
+      //printf( "break traverse\n" );
+    }
 } 
-
 
 
 
@@ -758,7 +790,7 @@ int rearrangeBIG(tree *tr, nodeptr p, int mintrav, int maxtrav)
       if(doQ == FALSE && doP == FALSE)
 	return 0;
     }
-  
+  //assert(0);
   if (!isTip(p->number, tr->rdta->numsp) && doP) 
     {     
       p1 = p->next->back;
@@ -770,23 +802,48 @@ int rearrangeBIG(tree *tr, nodeptr p, int mintrav, int maxtrav)
 	  for(i = 0; i < tr->numBranches; i++)
 	    {
 	      p1z[i] = p1->z[i];
-	      p2z[i] = p2->z[i];	   	   
+	      p2z[i] = p2->z[i];	   	  
 	    }
 	  
 	  if (! removeNodeBIG(tr, p,  tr->numBranches)) return badRear;
+
+	  
+	  if( s_dump_spr ) 
+	    {
+	      printf( "@subtree " ); 
+	      printTipNames( stdout, tr, p->back );
+	    }
+	  
+	  
 	  
 	  if (!isTip(p1->number, tr->rdta->numsp)) 
 	    {
+	      printf( "rearrange 11: %p %p\n", p, p1->next->back ); 
+// 	      printTipNames( stdout, tr, p1->next->back ); putc( '\n', stdout );
+	      
+	      
 	      addTraverseBIG(tr, p, p1->next->back,
 			     mintrav, maxtrav);         
+	      
+	      printf( "rearrange 12: %p %p\n", p, p1->next->next->back ); 
+// 	      printTipNames( stdout, tr, p1->next->next->back ); putc( '\n', stdout );
+	      
 	      addTraverseBIG(tr, p, p1->next->next->back,
 			     mintrav, maxtrav);          
+	      
 	    }
 	  
 	  if (!isTip(p2->number, tr->rdta->numsp)) 
 	    {
+	      printf( "rearrange 21: %p %p\n", p, p2->next->back ); 
+// 	      printTipNames( stdout, tr, p2->next->back ); putc( '\n', stdout );
+	      
 	      addTraverseBIG(tr, p, p2->next->back,
 			     mintrav, maxtrav);
+	      
+	      printf( "rearrange 22: %p %p\n", p, p2->next->next->back ); 
+// 	      printTipNames( stdout, tr, p2->next->next->back ); putc( '\n', stdout );
+	      
 	      addTraverseBIG(tr, p, p2->next->next->back,
 			     mintrav, maxtrav);          
 	    }
@@ -827,18 +884,35 @@ int rearrangeBIG(tree *tr, nodeptr p, int mintrav, int maxtrav)
 	  
 	  mintrav2 = mintrav > 2 ? mintrav : 2;
 	  
+	  if( s_dump_spr ) 
+	    {
+	      printf( "@subtree " ); 
+	      printTipNames( stdout, tr, q->back );
+	    }
+	  
+// 	  putc( '\n', stdout );
+	  
 	  if (/*! q1->tip*/ !isTip(q1->number, tr->rdta->numsp)) 
 	    {
+	      printf( "rearrange 31: %p %p\n", p, q1->next->back ); 
+	      //printTipNames( stdout, tr, q1->next->back ); putc( '\n', stdout );
 	      addTraverseBIG(tr, q, q1->next->back,
 			     mintrav2 , maxtrav);
+	      
+	      printf( "rearrange 32: %p %p\n", p, q1->next->next->back ); 
+	      //printTipNames( stdout, tr, q1->next->next->back ); putc( '\n', stdout );
 	      addTraverseBIG(tr, q, q1->next->next->back,
 			     mintrav2 , maxtrav);         
 	    }
 	  
 	  if (/*! q2->tip*/ ! isTip(q2->number, tr->rdta->numsp)) 
 	    {
+	      printf( "rearrange 41: %p %p\n", p, q2->next->back ); 
+// 	      printTipNames( stdout, tr, q2->next->back ); putc( '\n', stdout );
 	      addTraverseBIG(tr, q, q2->next->back,
 			     mintrav2 , maxtrav);
+	      printf( "rearrange 42: %p %p\n", p, q2->next->next->back ); 
+// 	      printTipNames( stdout, tr, q2->next->next->back ); putc( '\n', stdout );
 	      addTraverseBIG(tr, q, q2->next->next->back,
 			     mintrav2 , maxtrav);          
 	    }	   
@@ -912,9 +986,16 @@ double treeOptimizeRapid(tree *tr, int mintrav, int maxtrav, analdef *adef, best
 	index = i;
       
 
-
+      printf( "call rearrangeBIG: %d\n", index );
+      Tree2String( tr->tree_string, tr, tr->start->back, TRUE, TRUE, FALSE, FALSE, FALSE, adef, SUMMARIZE_LH, FALSE, FALSE );
+      printf( "@tree %s\n", tr->tree_string );
+      
+      s_dump_spr = TRUE;
+      
       if(rearrangeBIG(tr, tr->nodep[index], mintrav, maxtrav))
 	{    
+	  
+	  
 	  if(Thorough)
 	    {
 	      if(tr->endLH > tr->startLH)                 	
@@ -938,7 +1019,9 @@ double treeOptimizeRapid(tree *tr, int mintrav, int maxtrav, analdef *adef, best
 		  tr->startLH = tr->endLH = tr->likelihood;	  	 	  	  	  	  	  	  
 		}	    	  
 	    }
-	}     
+	}
+	
+      s_dump_spr = FALSE;
     }     
 
   if(!Thorough)
