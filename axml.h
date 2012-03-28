@@ -138,6 +138,7 @@
 #define MAX(x,y)  (((x)>(y)) ?    (x)  : (y))
 #define NINT(x)   ((int) ((x)>0 ? ((x)+0.5) : ((x)-0.5)))
 
+
 #define LOG(x)  log(x)
 #define EXP(x)  exp(x)
 
@@ -1093,7 +1094,7 @@ extern void classifyML(tree *tr, analdef *adef);
 extern void classifyMP(tree *tr, analdef *adef);
 extern void markTips(nodeptr p, int *perm, int maxTips);
 extern char *Tree2StringClassify(char *treestr, tree *tr, int *inserts, 
-				 boolean  originalTree, boolean jointLabels);
+				 boolean  originalTree, boolean jointLabels, boolean likelihood);
 
 
 extern void doBootstrap ( tree *tr, analdef *adef, rawdata *rdta, cruncheddata *cdta );
@@ -1205,7 +1206,7 @@ extern void   newviewIterative(tree *);
 extern double evaluateIterative(tree *, boolean writeVector);
 
 extern void *malloc_aligned( size_t size, size_t align);
-
+extern double FABS(double x);
 
 
 

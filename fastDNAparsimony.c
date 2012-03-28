@@ -81,7 +81,8 @@
 extern const unsigned int mask32[32]; 
 /* vector-specific stuff */
 
-
+extern char **globalArgv;
+extern int globalArgc;
 
 #ifdef __SIM_SSE3
 
@@ -2250,6 +2251,7 @@ static void setupBranchMetaInfo(tree *tr, nodeptr p, int nTips, branchInfo *bInf
       bInf[countBranches].epa->rightNodeNumber = p->back->number;
          
       bInf[countBranches].epa->branchNumber = countBranches;	                 
+      bInf[countBranches].epa->originalBranchLength = p->z[0];
 
       tr->branchCounter =  tr->branchCounter + 1;
       return;
@@ -2270,6 +2272,7 @@ static void setupBranchMetaInfo(tree *tr, nodeptr p, int nTips, branchInfo *bInf
 
                
       bInf[countBranches].epa->branchNumber = countBranches;
+      bInf[countBranches].epa->originalBranchLength = p->z[0];
 
       tr->branchCounter =  tr->branchCounter + 1;      
 
@@ -2458,6 +2461,7 @@ void classifyMP(tree *tr, analdef *adef)
   char   
     jointFormatTreeFileName[1024],  
     originalLabelledTreeFileName[1024],
+    labelledTreeFileName[1024],
     likelihoodWeightsFileName[1024];
               
   FILE    
@@ -2522,6 +2526,7 @@ void classifyMP(tree *tr, analdef *adef)
 	tr->bInf[i].epa->parsimonyScore[j] = INT_MAX;
                 
       tr->bInf[i].epa->branchNumber = i;
+      tr->bInf[i].epa->countThem = (int*)calloc(tr->numberOfTipsForInsertion, sizeof(int));
       
       sprintf(tr->bInf[i].epa->branchLabel, "I%d", i);     
     } 
@@ -2542,18 +2547,22 @@ void classifyMP(tree *tr, analdef *adef)
                    
   printBothOpen("Overall Classification time: %f\n\n", gettime() - masterTime);	
   
-  strcpy(likelihoodWeightsFileName,    workdir);
+ 
   strcpy(jointFormatTreeFileName,      workdir);  
   strcpy(originalLabelledTreeFileName, workdir);  
- 
+  strcpy(labelledTreeFileName,         workdir);  
+  strcpy(likelihoodWeightsFileName,    workdir);
+
   strcat(jointFormatTreeFileName,      "RAxML_portableTree."); 
   strcat(originalLabelledTreeFileName, "RAxML_originalLabelledTree.");
+  strcat(labelledTreeFileName,         "RAxML_labelledTree.");
   strcat(likelihoodWeightsFileName,    "RAxML_equallyParsimoniousPlacements.");
-
-  strcat(likelihoodWeightsFileName,    run_id);
+  
   strcat(jointFormatTreeFileName,      run_id); 
   strcat(originalLabelledTreeFileName, run_id);
- 
+  strcat(labelledTreeFileName,         run_id);
+  strcat(likelihoodWeightsFileName,    run_id);
+
   strcat(jointFormatTreeFileName,      ".jplace");
   
   free(tr->tree_string);
@@ -2563,13 +2572,14 @@ void classifyMP(tree *tr, analdef *adef)
   tr->tree_string  = (char*)calloc(tr->treeStringLength, sizeof(char));  
   
  
+
   treeFile = myfopen(originalLabelledTreeFileName, "wb");
-  Tree2StringClassify(tr->tree_string, tr, tr->inserts, TRUE, FALSE);
+  Tree2StringClassify(tr->tree_string, tr, tr->inserts, TRUE, FALSE, FALSE);
   fprintf(treeFile, "%s\n", tr->tree_string);    
   fclose(treeFile); 
 
   treeFile = myfopen(jointFormatTreeFileName, "wb");
-  Tree2StringClassify(tr->tree_string, tr, tr->inserts, TRUE, TRUE);
+  Tree2StringClassify(tr->tree_string, tr, tr->inserts, TRUE, TRUE, FALSE);
   
   fprintf(treeFile, "{\n");
   fprintf(treeFile, "\t\"tree\": \"%s\", \n", tr->tree_string);
@@ -2611,14 +2621,14 @@ void classifyMP(tree *tr, analdef *adef)
 	      if(tr->wasRooted && inf[j].number == tr->rootLabel)		  
 		assert(0);		 
 	      else
-		fprintf(treeFile, ",[%d, %u, %f, %f, %f]", inf[j].number, inf[j].parsimonyScore, 0.0, 0.0, 0.0);
+		fprintf(treeFile, ",[%d, %u]", inf[j].number, inf[j].parsimonyScore);
 	    }
 	  else
 	    {
 	      if(tr->wasRooted && inf[j].number == tr->rootLabel)		  
 		assert(0);		  
 	      else
-		fprintf(treeFile, "[%d, %u, %f, %f, %f]", inf[j].number, inf[j].parsimonyScore, 0.0, 0.0, 0.0);
+		fprintf(treeFile, "[%d, %u]", inf[j].number, inf[j].parsimonyScore);
 	    }	  
 	  
 	  j++;
@@ -2631,11 +2641,23 @@ void classifyMP(tree *tr, analdef *adef)
     }  
     
   fprintf(treeFile, "\t ],\n");
-  fprintf(treeFile, "\t\"metadata\": {\"invocation\": \"RAxML EPA parsimony\"},\n");
-  fprintf(treeFile, "\t\"version\": 1,\n");
+  /*  fprintf(treeFile, "\t\"metadata\": {\"invocation\": \"RAxML EPA parsimony\"},\n");*/
+  fprintf(treeFile, "\t\"metadata\": {\"invocation\": ");
+
+  fprintf(treeFile, "\"");
+  
+  {
+    int i;
+    
+    for(i = 0; i < globalArgc; i++)
+      fprintf(treeFile,"%s ", globalArgv[i]);
+  }
+  fprintf(treeFile, "\", \"raxml_version\": \"%s\"", programVersion);
+  fprintf(treeFile,"},\n");
+
+  fprintf(treeFile, "\t\"version\": 2,\n");
   fprintf(treeFile, "\t\"fields\": [\n");
-  fprintf(treeFile, "\t\"edge_num\", \"parsimony\", \"like_weight_ratio\", \"distal_length\", \n");
-  fprintf(treeFile, "\t\"pendant_length\"\n");
+  fprintf(treeFile, "\t\"edge_num\", \"parsimony\"\n");
   fprintf(treeFile, "\t]\n");
   fprintf(treeFile, "}\n");
   
@@ -2668,7 +2690,8 @@ void classifyMP(tree *tr, analdef *adef)
       
       while(j < validEntries && inf[j].parsimonyScore == lmax)	  
 	{ 	   	    
-	  fprintf(likelihoodWeightsFile, "%s I%d %u\n", tr->nameList[tr->inserts[i]], inf[j].number, inf[j].parsimonyScore);	    
+	  fprintf(likelihoodWeightsFile, "%s I%d %u\n", tr->nameList[tr->inserts[i]], inf[j].number, inf[j].parsimonyScore);
+	  tr->bInf[inf[j].number].epa->countThem[i] = 1;
 	  j++;
 	}			      	   
     }
@@ -2677,10 +2700,18 @@ void classifyMP(tree *tr, analdef *adef)
    
   fclose(likelihoodWeightsFile); 
     
+  
+  Tree2StringClassify(tr->tree_string, tr, tr->inserts, FALSE, FALSE, FALSE);
+  treeFile = fopen(labelledTreeFileName, "wb");
+  fprintf(treeFile, "%s\n", tr->tree_string);
+  fclose(treeFile);
+  
+
   printBothOpen("Equally parsimonious read placements written to file: %s\n\n", likelihoodWeightsFileName);
   printBothOpen("Labelled reference tree with branch labels (without query sequences) written to file: %s\n\n", originalLabelledTreeFileName); 
   printBothOpen("Labelled reference tree with branch labels in portable pplacer/EPA format (without query sequences) written to file: %s\n\n", jointFormatTreeFileName);
-
+  printBothOpen("Labelled reference tree including branch labels and query sequences written to file: %s\n\n", labelledTreeFileName); 
+  
   exit(0);
 }
 

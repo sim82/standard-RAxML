@@ -661,6 +661,8 @@ void doAllInOne(tree *tr, analdef *adef)
       computeNextReplicate(tr, &adef->rapidBoot, originalRateCategories, originalInvariant, TRUE, TRUE); 
       resetBranches(tr);
 
+     
+
       evaluateGenericInitrav(tr, tr->start);
     
       treeEvaluate(tr, 1);    	             
@@ -680,18 +682,19 @@ void doAllInOne(tree *tr, analdef *adef)
 	  if(tr->rateHetModel == CAT)
 	    {
 	      copyParams(tr->NumberOfModels, tr->partitionData, gammaParams, tr);	      
-	      endsite = tr->cdta->endsite;
-	      tr->cdta->endsite = tr->originalCrunchedLength;
+	      /*endsite = tr->cdta->endsite;
+		tr->cdta->endsite = tr->originalCrunchedLength;*/
 	      catToGamma(tr, adef);
-	      tr->cdta->endsite = endsite;
+	      /*tr->cdta->endsite = endsite;*/
 	      
 	      resetBranches(tr);
+	      onlyInitrav(tr, tr->start);
 	      treeEvaluate(tr, 2.0);
 	  
-	      endsite = tr->cdta->endsite;
-	      tr->cdta->endsite = tr->originalCrunchedLength;
+	      /*endsite = tr->cdta->endsite;
+		tr->cdta->endsite = tr->originalCrunchedLength;*/
 	      gammaToCat(tr);
-	      tr->cdta->endsite = endsite;	 	    
+	      /*tr->cdta->endsite = endsite;	 	    */
 	
 	      copyParams(tr->NumberOfModels, tr->partitionData, catParams, tr);	      
 	      tr->likelihood = lh;
@@ -1460,7 +1463,14 @@ void doInference(tree *tr, analdef *adef, rawdata *rdta, cruncheddata *cdta)
 	{
 	  restoreTL(rl, tr, best);
 	  onlyInitrav(tr, tr->start);
-	  modOpt(tr, adef, FALSE, adef->likelihoodEpsilon, FALSE);  
+	  if(!adef->useBinaryModelFile)
+	    modOpt(tr, adef, FALSE, adef->likelihoodEpsilon, FALSE); 
+	  else
+	    {
+	      readBinaryModel(tr);
+	      evaluateGenericInitrav(tr, tr->start);
+	      treeEvaluate(tr, 2);
+	    }
 	  bestLH = tr->likelihood;
 	  tr->likelihoods[best] = tr->likelihood;
 	  saveTL(rl, tr, best);

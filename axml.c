@@ -81,9 +81,16 @@
 /***************** UTILITY FUNCTIONS **************************/
 
 
+double FABS(double x)
+{
+  /*  if(x < -1.0E-10)
+      assert(0);*/
+  
+  /* if(x < 0.0)
+     printf("%1.40f\n", x); */
 
-
-
+  return fabs(x);
+}
 
 void *malloc_aligned(size_t size, size_t align) 
 {
@@ -385,6 +392,9 @@ static void setRateHetAndDataIncrement(tree *tr, analdef *adef)
     default:
       assert(0);
     }
+
+  if(adef->bootstrapBranchLengths)
+    assert(tr->discreteRateCategories == 4);
 
   for(model = 0; model < tr->NumberOfModels; model++)
     {
@@ -1333,6 +1343,8 @@ static void getinput(analdef *adef, rawdata *rdta, cruncheddata *cdta, tree *tr)
 	  int ref;
 	  
 	  parsePartitions(adef, rdta, tr);
+
+	  printf("NUM models: %d\n", tr->NumberOfModels);
 	  
 	  for(i = 1; i <= rdta->sites; i++)
 	    {
@@ -1752,7 +1764,6 @@ static void sitesort(rawdata *rdta, cruncheddata *cdta, tree *tr, analdef *adef)
 		     
 		      flip = (category[jj] > category[jg]);
 		      tied = (category[jj] == category[jg]);		     
-
 		    }
 		  else
 		    {
@@ -1798,7 +1809,7 @@ static void sitecombcrunch (rawdata *rdta, cruncheddata *cdta, tree *tr, analdef
   cdta->alias[0]    = cdta->alias[1];
   cdta->aliaswgt[0] = 0;
 
-  if(adef->mode == PER_SITE_LL)
+  if(adef->mode == PER_SITE_LL || adef->mode == ANCESTRAL_STATES)
     {
       int i;
 
@@ -1838,7 +1849,7 @@ static void sitecombcrunch (rawdata *rdta, cruncheddata *cdta, tree *tr, analdef
 
       if (tied)
 	{
-	  if(adef->mode == PER_SITE_LL)
+	  if(adef->mode == PER_SITE_LL || adef->mode == ANCESTRAL_STATES)
 	    {
 	      tr->patternPosition[j - 1] = i;
 	      tr->columnPosition[j - 1] = sitej;
@@ -1857,7 +1868,7 @@ static void sitecombcrunch (rawdata *rdta, cruncheddata *cdta, tree *tr, analdef
 	{
 	  if (cdta->aliaswgt[i] > 0) i++;
 
-	  if(adef->mode == PER_SITE_LL)
+	  if(adef->mode == PER_SITE_LL || adef->mode == ANCESTRAL_STATES)
 	    {
 	      tr->patternPosition[j - 1] = i;
 	      tr->columnPosition[j - 1] = sitej;
@@ -1877,7 +1888,7 @@ static void sitecombcrunch (rawdata *rdta, cruncheddata *cdta, tree *tr, analdef
   cdta->endsite = i;
   if (cdta->aliaswgt[i] > 0) cdta->endsite++;
 
-  if(adef->mode == PER_SITE_LL)
+  if(adef->mode == PER_SITE_LL || adef->mode == ANCESTRAL_STATES)
     {
       for(i = 0; i < rdta->sites; i++)
 	{
@@ -1955,9 +1966,9 @@ static boolean makevalues(rawdata *rdta, cruncheddata *cdta, tree *tr, analdef *
       i            = 1;
 
       while(i <  cdta->endsite)
-	{
+	{	  
 	  if(tr->model[i] != model)
-	    {
+	    {	     
 	      tr->partitionData[modelCounter].upper     = i;
 	      tr->partitionData[modelCounter + 1].lower = i;
 
@@ -1966,7 +1977,6 @@ static boolean makevalues(rawdata *rdta, cruncheddata *cdta, tree *tr, analdef *
 	    }
 	  i++;
 	}
-
 
       tr->partitionData[tr->NumberOfModels - 1].upper = cdta->endsite;      
     
@@ -4160,7 +4170,7 @@ static void get_args(int argc, char *argv[], analdef *adef, tree *tr)
 	  {
 	  case 'A':
 	    adef->mode = ANCESTRAL_STATES; 
-	    adef->compressPatterns  = FALSE;
+	    /*adef->compressPatterns  = FALSE;*/
 	    break;
 	  case 'a':
 	    adef->allInOne = TRUE;
@@ -7282,8 +7292,17 @@ static void computePerSiteLLs(tree *tr, analdef *adef, char *bootStrapFileName)
       treeReadLen(treeFile, tr, FALSE, FALSE, FALSE, adef, TRUE);
       assert(tr->ntips == tr->mxtips);
       
-      if(i == 0)       
-	modOpt(tr, adef, TRUE, adef->likelihoodEpsilon, TRUE);	
+      if(i == 0) 
+	{
+	  if(adef->useBinaryModelFile)
+	    {
+	      readBinaryModel(tr);
+	      evaluateGenericInitrav(tr, tr->start);
+	      treeEvaluate(tr, 2);
+	    }
+	  else
+	    modOpt(tr, adef, TRUE, adef->likelihoodEpsilon, TRUE);	
+	}
       else
 	treeEvaluate(tr, 2);     
 
@@ -8033,7 +8052,12 @@ void readBinaryModel(tree *tr)
     model;
 
   FILE 
-    *f = fopen(binaryModelParamsInputFileName, "r");   
+    *f;
+
+
+  printBothOpen("\nRAxML is reading a binary model file and not optimizing model params\n");
+
+  f = fopen(binaryModelParamsInputFileName, "r");   
 
   /* cdta */   
 
@@ -8064,7 +8088,7 @@ void readBinaryModel(tree *tr)
     }
 
 #ifdef _USE_PTHREADS
-  /* TODO need to add stuff if we want this to work for CAT models and SP implementations as well */
+  /* TODO need to add stuff if we want this to work for CAT models as well */
   masterBarrier(THREAD_RESET_MODEL, tr);
 #endif  
 
@@ -8191,8 +8215,10 @@ int main (int argc, char *argv[])
 
   masterTime = gettime();
 
-
-
+  globalArgc = argc;
+  globalArgv = (char **)malloc(sizeof(char *) * argc);
+  for(i = 0; i < argc; i++)
+    globalArgv[i] = argv[i];
 
 
 
@@ -8429,9 +8455,7 @@ int main (int argc, char *argv[])
 	  printLog(tr, adef, TRUE);
 	  printResult(tr, adef, TRUE);
 	}
-     
-     
-
+  
       break;
     case ANCESTRAL_STATES:
       initModel(tr, rdta, cdta, adef);
