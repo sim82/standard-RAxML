@@ -3940,7 +3940,7 @@ static void topLevelMakenewz(tree *tr, double *z0, int _maxiter, double *result)
 		outerConverged[i] = TRUE;
 	    }
 	}
-
+      
       loopConverged = TRUE;
       for(i = 0; i < numBranches; i++)
 	loopConverged = loopConverged && outerConverged[i];
@@ -3953,6 +3953,8 @@ static void topLevelMakenewz(tree *tr, double *z0, int _maxiter, double *result)
 
   for(i = 0; i < numBranches; i++)
     result[i] = z[i];
+  
+//   printf( "z: " << z
 }
 
 

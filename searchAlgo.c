@@ -56,7 +56,7 @@ extern FILE *INFILE;
 extern double masterTime;
 
 static boolean s_dump_spr = FALSE;
-
+static boolean s_dump_smooth = FALSE;
 
 boolean initrav (tree *tr, nodeptr p)
 { 
@@ -127,6 +127,11 @@ boolean update(tree *tr, nodeptr p)
 	  p->z[i] = q->z[i] = z[i];	 
 	}
     }
+  if( s_dump_smooth ) { 
+    printf( "@smooth %f ", getBranchLength( tr, SUMMARIZE_LH, p));
+    printTipNames( stdout, tr, p );
+  }
+  
   
   for(i = 0; i < tr->numBranches; i++)    
     tr->partitionSmoothed[i]  = smoothedPartitions[i];
@@ -1364,12 +1369,17 @@ void computeBIGRAPID (tree *tr, analdef *adef, boolean estimateModel)
      
       treeOptimizeRapid(tr, 1, bestTrav, adef, bt);   
       
+      Tree2String( tr->tree_string, tr, tr->start->back, TRUE, TRUE, FALSE, FALSE, FALSE, adef, SUMMARIZE_LH, FALSE, FALSE );
+      printf( "@post_tree %s\n", tr->tree_string );
+      
+      s_dump_smooth = TRUE;
+      
       impr = 0;
 	  
       for(i = 1; i <= bt->nvalid; i++)
 	{	    		  	   
 	  recallBestTree(bt, i, tr);
-	  
+	  //printf( "xxx evaluate\n" );
 	  treeEvaluate(tr, 0.25);	    	 		      	 
 
 	  difference = ((tr->likelihood > previousLh)? 
@@ -1383,7 +1393,7 @@ void computeBIGRAPID (tree *tr, analdef *adef, boolean estimateModel)
 	    }	   	   
 	}
 
-
+      s_dump_smooth = FALSE;
 	
     }
 

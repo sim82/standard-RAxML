@@ -1413,5 +1413,6 @@ extern void masterBarrier(int jobType, tree *tr);
 
 #endif
 
+double getBranchLength(tree *tr, int perGene, nodeptr p);
 
 
