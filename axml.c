@@ -98,7 +98,7 @@ void *malloc_aligned(size_t size)
   int res;
   
 
-#if defined (__APPLE__) || defined(__MINGW32_VERSION)
+#if defined (__APPLE__) || defined(__MINGW32__)
   /* 
      presumably malloc on MACs always returns 
      a 16-byte aligned pointer
