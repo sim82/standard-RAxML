@@ -84,6 +84,14 @@ extern const unsigned int mask32[32];
 extern char **globalArgv;
 extern int globalArgc;
 
+
+typedef struct {
+  FILE *tree_h;
+} stepwise_print_t;
+
+
+static stepwise_print_t g_swp;
+
 #ifdef __SIM_SSE3
 
 #define INTS_PER_VECTOR 4
@@ -1789,6 +1797,8 @@ static void stepwiseAddition(tree *tr, nodeptr p, nodeptr q)
     
   mp = evaluateParsimonyIterativeFast(tr);
   
+  fprintf( g_swp.tree_h, "%d ", mp );
+
   if(mp < tr->bestParsimony)
     {    
       tr->bestParsimony = mp;
@@ -1797,7 +1807,10 @@ static void stepwiseAddition(tree *tr, nodeptr p, nodeptr q)
  
   q->back = r;
   r->back = q;
-   
+  q->z[0] = mp;
+  r->z[0] = mp;
+
+
   if(q->number > tr->mxtips && tr->parsimonyScore[q->number] > 0)
     {	      
       stepwiseAddition(tr, p, q->next->back);	      
@@ -1836,6 +1849,8 @@ void makeParsimonyTreeFast(tree *tr, analdef *adef, boolean full)
     randomMP, 
     startMP;        
 
+  g_swp.tree_h = fopen( "stepwise.phy", "wb" );
+
   /* double t; */
 
   determineUninformativeSites(tr, informative);     
@@ -1848,6 +1863,7 @@ void makeParsimonyTreeFast(tree *tr, analdef *adef, boolean full)
  
   /*t = gettime();*/
 
+  printf( "here: %d\n", full );
   if(!full)
     {           
       unsigned int 
@@ -1933,12 +1949,16 @@ void makeParsimonyTreeFast(tree *tr, analdef *adef, boolean full)
       tr->ntips = 0;    
       
       tr->nextnode = tr->mxtips + 1;       
-      
+    
+      printf( "xxx\n" );
+  
       buildSimpleTree(tr, perm[1], perm[2], perm[3]);      
       
       f = tr->start;
     }     
   
+  
+
   while(tr->ntips < tr->mxtips) 
     {	
       nodeptr q;
@@ -1958,8 +1978,16 @@ void makeParsimonyTreeFast(tree *tr, analdef *adef, boolean full)
 	  tr->constraintVector[number] = -9;
 	}
           
+
+
+
       stepwiseAddition(tr, q, f->back);      	  	 
+
+      Tree2String( tr->tree_string, tr, tr->start->back, TRUE, TRUE, FALSE, FALSE, FALSE, adef, FALSE, FALSE, FALSE );
+      fprintf( g_swp.tree_h, "%s\n", tr->tree_string );
       
+      fprintf( g_swp.tree_h, "\n" );
+
       {
 	nodeptr	  
 	  r = tr->insertNode->back;
@@ -1977,6 +2005,8 @@ void makeParsimonyTreeFast(tree *tr, analdef *adef, boolean full)
     }    
   
   /*printf("ADD: %d\n", tr->bestParsimony); */
+
+  fclose( g_swp.tree_h );
   
   nodeRectifier(tr);
   
