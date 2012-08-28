@@ -1369,8 +1369,6 @@ void computeBIGRAPID (tree *tr, analdef *adef, boolean estimateModel)
      
       treeOptimizeRapid(tr, 1, bestTrav, adef, bt);   
       
-      Tree2String( tr->tree_string, tr, tr->start->back, TRUE, TRUE, FALSE, FALSE, FALSE, adef, SUMMARIZE_LH, FALSE, FALSE );
-      printf( "@post_tree %s\n", tr->tree_string );
       
       s_dump_smooth = TRUE;
       
@@ -1380,7 +1378,11 @@ void computeBIGRAPID (tree *tr, analdef *adef, boolean estimateModel)
 	{	    		  	   
 	  recallBestTree(bt, i, tr);
 	  //printf( "xxx evaluate\n" );
-	  treeEvaluate(tr, 0.25);	    	 		      	 
+	
+          Tree2String( tr->tree_string, tr, tr->start->back, TRUE, TRUE, FALSE, FALSE, FALSE, adef, SUMMARIZE_LH, FALSE, FALSE );
+          printf( "@post_tree %s\n", tr->tree_string );
+      
+          treeEvaluate(tr, 0.25);	    	 		      	 
 
 	  difference = ((tr->likelihood > previousLh)? 
 			tr->likelihood - previousLh: 
