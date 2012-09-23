@@ -1415,4 +1415,5 @@ extern void masterBarrier(int jobType, tree *tr);
 
 double getBranchLength(tree *tr, int perGene, nodeptr p);
 
-
+extern boolean g_dump_smooth;
+extern int g_nocorrect_brlen;

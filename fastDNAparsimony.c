@@ -1797,7 +1797,7 @@ static void stepwiseAddition(tree *tr, nodeptr p, nodeptr q)
     
   mp = evaluateParsimonyIterativeFast(tr);
   
-  fprintf( g_swp.tree_h, "%d ", mp );
+//   fprintf( g_swp.tree_h, "%d ", mp );
 
   if(mp < tr->bestParsimony)
     {    

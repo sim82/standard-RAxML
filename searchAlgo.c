@@ -56,7 +56,7 @@ extern FILE *INFILE;
 extern double masterTime;
 
 static boolean s_dump_spr = FALSE;
-static boolean s_dump_smooth = FALSE;
+boolean g_dump_smooth = FALSE;
 
 boolean initrav (tree *tr, nodeptr p)
 { 
@@ -127,7 +127,7 @@ boolean update(tree *tr, nodeptr p)
 	  p->z[i] = q->z[i] = z[i];	 
 	}
     }
-  if( s_dump_smooth ) { 
+  if( g_dump_smooth ) { 
     printf( "@smooth %f ", getBranchLength( tr, SUMMARIZE_LH, p));
     printTipNames( stdout, tr, p );
   }
@@ -823,14 +823,14 @@ int rearrangeBIG(tree *tr, nodeptr p, int mintrav, int maxtrav)
 	  
 	  if (!isTip(p1->number, tr->rdta->numsp)) 
 	    {
-	      printf( "rearrange 11: %p %p\n", p, p1->next->back ); 
+// 	      printf( "rearrange 11: %p %p\n", p, p1->next->back ); 
 // 	      printTipNames( stdout, tr, p1->next->back ); putc( '\n', stdout );
 	      
 	      
 	      addTraverseBIG(tr, p, p1->next->back,
 			     mintrav, maxtrav);         
 	      
-	      printf( "rearrange 12: %p %p\n", p, p1->next->next->back ); 
+// 	      printf( "rearrange 12: %p %p\n", p, p1->next->next->back ); 
 // 	      printTipNames( stdout, tr, p1->next->next->back ); putc( '\n', stdout );
 	      
 	      addTraverseBIG(tr, p, p1->next->next->back,
@@ -840,13 +840,13 @@ int rearrangeBIG(tree *tr, nodeptr p, int mintrav, int maxtrav)
 	  
 	  if (!isTip(p2->number, tr->rdta->numsp)) 
 	    {
-	      printf( "rearrange 21: %p %p\n", p, p2->next->back ); 
+// 	      printf( "rearrange 21: %p %p\n", p, p2->next->back ); 
 // 	      printTipNames( stdout, tr, p2->next->back ); putc( '\n', stdout );
 	      
 	      addTraverseBIG(tr, p, p2->next->back,
 			     mintrav, maxtrav);
 	      
-	      printf( "rearrange 22: %p %p\n", p, p2->next->next->back ); 
+// 	      printf( "rearrange 22: %p %p\n", p, p2->next->next->back ); 
 // 	      printTipNames( stdout, tr, p2->next->next->back ); putc( '\n', stdout );
 	      
 	      addTraverseBIG(tr, p, p2->next->next->back,
@@ -899,12 +899,12 @@ int rearrangeBIG(tree *tr, nodeptr p, int mintrav, int maxtrav)
 	  
 	  if (/*! q1->tip*/ !isTip(q1->number, tr->rdta->numsp)) 
 	    {
-	      printf( "rearrange 31: %p %p\n", p, q1->next->back ); 
+// 	      printf( "rearrange 31: %p %p\n", p, q1->next->back ); 
 	      //printTipNames( stdout, tr, q1->next->back ); putc( '\n', stdout );
 	      addTraverseBIG(tr, q, q1->next->back,
 			     mintrav2 , maxtrav);
 	      
-	      printf( "rearrange 32: %p %p\n", p, q1->next->next->back ); 
+// 	      printf( "rearrange 32: %p %p\n", p, q1->next->next->back ); 
 	      //printTipNames( stdout, tr, q1->next->next->back ); putc( '\n', stdout );
 	      addTraverseBIG(tr, q, q1->next->next->back,
 			     mintrav2 , maxtrav);         
@@ -912,11 +912,11 @@ int rearrangeBIG(tree *tr, nodeptr p, int mintrav, int maxtrav)
 	  
 	  if (/*! q2->tip*/ ! isTip(q2->number, tr->rdta->numsp)) 
 	    {
-	      printf( "rearrange 41: %p %p\n", p, q2->next->back ); 
+// 	      printf( "rearrange 41: %p %p\n", p, q2->next->back ); 
 // 	      printTipNames( stdout, tr, q2->next->back ); putc( '\n', stdout );
 	      addTraverseBIG(tr, q, q2->next->back,
 			     mintrav2 , maxtrav);
-	      printf( "rearrange 42: %p %p\n", p, q2->next->next->back ); 
+// 	      printf( "rearrange 42: %p %p\n", p, q2->next->next->back ); 
 // 	      printTipNames( stdout, tr, q2->next->next->back ); putc( '\n', stdout );
 	      addTraverseBIG(tr, q, q2->next->next->back,
 			     mintrav2 , maxtrav);          
@@ -1280,6 +1280,8 @@ void computeBIGRAPID (tree *tr, analdef *adef, boolean estimateModel)
     
   Thorough = 0;     
   
+  
+  
   if(estimateModel)
     {
       if(adef->useBinaryModelFile)
@@ -1295,6 +1297,8 @@ void computeBIGRAPID (tree *tr, analdef *adef, boolean estimateModel)
     treeEvaluate(tr, 2);  
 
 
+  
+  
   printLog(tr, adef, FALSE); 
 
   saveBestTree(bestT, tr);
@@ -1370,7 +1374,7 @@ void computeBIGRAPID (tree *tr, analdef *adef, boolean estimateModel)
       treeOptimizeRapid(tr, 1, bestTrav, adef, bt);   
       
       
-      s_dump_smooth = TRUE;
+      g_dump_smooth = TRUE;
       
       impr = 0;
 	  
@@ -1395,7 +1399,7 @@ void computeBIGRAPID (tree *tr, analdef *adef, boolean estimateModel)
 	    }	   	   
 	}
 
-      s_dump_smooth = FALSE;
+      g_dump_smooth = FALSE;
 	
     }
 

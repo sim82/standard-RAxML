@@ -53,6 +53,7 @@ extern char *smoothed_key;
 extern int partCount;
 extern double masterTime;
 
+int g_nocorrect_brlen = 0;
 
 
 
@@ -181,8 +182,9 @@ double getBranchLength(tree *tr, int perGene, nodeptr p)
     x = 0.0;
 
 
-
-  return p->z[0];
+  if( g_nocorrect_brlen ) {
+    return p->z[0];
+  }
 
   assert(perGene != NO_BRANCHES);
 	      
@@ -1660,11 +1662,18 @@ void getStartingTree(tree *tr, analdef *adef)
       else   	         
 	printStartingTree(tr, adef, FALSE);     	         
             
+      
+      
       setupPointerMesh(tr);	  
       
+      Tree2String( tr->tree_string, tr, tr->start->back, TRUE, TRUE, FALSE, FALSE, FALSE, adef, SUMMARIZE_LH, FALSE, FALSE );
+      printf( "@tree %s\n", tr->tree_string );
+      printf( "@post_tree %s\n", tr->tree_string );
+      g_dump_smooth = TRUE;
       evaluateGenericInitrav(tr, tr->start);                                       	 
       
       treeEvaluate(tr, 1);        	     
+      g_dump_smooth = FALSE;
     }         
 
   tr->start = tr->nodep[1];
