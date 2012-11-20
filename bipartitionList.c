@@ -106,6 +106,9 @@ entry *initEntry(void)
   return e;
 } 
 
+
+
+
 hashtable *initHashTable(hashNumberType n)
 {
   /* 
@@ -784,12 +787,13 @@ static void linkBipartitions(nodeptr p, tree *tr, branchInfo *bInf, int *counter
   
 
 
-static void readSingleTree(tree *tr, char *fileName, analdef *adef, boolean readBranches, boolean readNodeLabels, boolean completeTree)
+static int readSingleTree(tree *tr, char *fileName, analdef *adef, boolean readBranches, boolean readNodeLabels, boolean completeTree)
 { 
   FILE 
     *f = myfopen(fileName, "r");
 
   int 
+    numberOfTaxa,
     ch,
     trees = 0;
 
@@ -805,7 +809,11 @@ static void readSingleTree(tree *tr, char *fileName, analdef *adef, boolean read
 
   treeReadLen(f, tr, readBranches, readNodeLabels, TRUE, adef, completeTree);
   
+  numberOfTaxa = tr->ntips;
+
   fclose(f);
+
+  return numberOfTaxa;
 }
 
 void calcBipartitions(tree *tr, analdef *adef, char *bestTreeFileName, char *bootStrapFileName)
@@ -815,6 +823,7 @@ void calcBipartitions(tree *tr, analdef *adef, char *bestTreeFileName, char *boo
   unsigned int vLength;
 
   int 
+    numberOfTaxa = 0,
     branchCounter = 0,
     counter = 0,  
     numberOfTrees = 0,
@@ -829,11 +838,18 @@ void calcBipartitions(tree *tr, analdef *adef, char *bestTreeFileName, char *boo
   FILE 
     *treeFile; 
   
-  readSingleTree(tr, bestTreeFileName, adef, FALSE, FALSE, TRUE);    
+  numberOfTaxa = readSingleTree(tr, bestTreeFileName, adef, FALSE, FALSE, TRUE);    
   
   bInf = (branchInfo*)malloc(sizeof(branchInfo) * (tr->mxtips - 3));
 
   bitVectorInitravSpecial(bitVectors, tr->nodep[1]->back, tr->mxtips, vLength, h, 0, GET_BIPARTITIONS_BEST, bInf, &branchCounter, 0, FALSE, FALSE);   
+
+  if(numberOfTaxa != tr->mxtips)
+    {
+      printBothOpen("The number of taxa in the reference tree file \"%s\" is %d and\n",  bestTreeFileName, numberOfTaxa);
+      printBothOpen("is not equal to the number of taxa in the bootstrap tree file \"%s\" which is %d.\n", bootStrapFileName, tr->mxtips);
+      printBothOpen("RAxML will exit now with an error ....\n\n");
+    }
  
   assert((int)h->entryCount == (tr->mxtips - 3));  
   assert(branchCounter == (tr->mxtips - 3));
@@ -2026,10 +2042,12 @@ boolean compatible(entry* e1, entry* e2, unsigned int bvlen)
 
 static int sortByWeight(const void *a, const void *b, int which)
 {
-  //recall, we want to sort descending, instead of ascending
+  /* recall, we want to sort descending, instead of ascending */
+     
   int 
     ca,
     cb;
+    
   ca = ((*((entry **)a))->supportFromTreeset)[which];
   cb = ((*((entry **)b))->supportFromTreeset)[which];
   
@@ -2055,11 +2073,12 @@ static int _sortByWeight1(const void *a, const void *b)
   return sortByWeight(a,b,1);
 }
 
-boolean issubset(unsigned int* bipA, unsigned int* bipB, unsigned int vectorLen)
+boolean issubset(unsigned int* bipA, unsigned int* bipB, unsigned int vectorLen, unsigned int firstIndex)
 {
-  unsigned int i;
+  unsigned int 
+    i;
   
-  for(i = 0; i < vectorLen; i++)
+  for(i = firstIndex; i < vectorLen; i++)
     if((bipA[i] & bipB[i]) != bipA[i])    
       return FALSE;
         
@@ -2297,7 +2316,7 @@ static void printBipsRecursive(FILE *outf, int consensusBipLen, entry **consensu
 
 
 
-static void printSortedBips(entry **consensusBips, const int consensusBipLen, const int numTips, const int vectorLen, 
+static void printSortedBips(entry **consensusBips, const int consensusBipLen, const int numTips, const unsigned int vectorLen, 
 			    const int numberOfTrees, FILE *outf, char **nameList , tree *tr, unsigned int *printCounter)
 {
   int 
@@ -2312,6 +2331,13 @@ static void printSortedBips(entry **consensusBips, const int consensusBipLen, co
   
   entry 
     *topBip; 
+
+#ifndef _USE_PTHREADS
+  List 
+    *elems = (List*)malloc((size_t)consensusBipLen *  sizeof(List));
+  int 
+    *intList = (int*)malloc(sizeof(int) * (size_t)consensusBipLen); 
+#endif 
 
   /* sort the consensusBips by the amount of tips they contain */
   
@@ -2361,35 +2387,50 @@ static void printSortedBips(entry **consensusBips, const int consensusBipLen, co
   hasAncestor = tr->hasAncestor;
   listOfDirectChildren = tr->listOfDirectChildren; 
 #else 
-  for(i = 0; i < consensusBipLen; i++)
-    {
-      int j;
-      
-      for(j = i+1; j < consensusBipLen; j++)
-	{
-	  if((unsigned int)consensusBips[i]->amountTips < (unsigned int)consensusBips[j]->amountTips
-	     && issubset(consensusBips[i]->bitVector, consensusBips[j]->bitVector, vectorLen))
-	    { 
-	      /* i is child of j */
-	      /* insert */	
-	      
-	      List 
-		*elem = (List*) malloc(sizeof(List));
-	      
-	      /* elem->value = &i; */
-	      
-	      elem->value = calloc(1, sizeof(int));
-	      
-	      *(int*)elem->value = i; 
-	      elem->next = (listOfDirectChildren[j])
-		?listOfDirectChildren[j]
-		:NULL;
-	      listOfDirectChildren[j] = elem;
-	      hasAncestor[i] = TRUE;
-	      break;
-	    }
-	}
-    }
+  {
+    int 
+      j,
+      highestId = 0; 
+
+    for(i = 0; i < consensusBipLen; i++)
+      {
+	entry 
+	  *bipA = consensusBips[i]; 
+	
+	/* find first index  */
+	unsigned int 
+	  firstIndex = 0;
+	
+	while(firstIndex < vectorLen && bipA->bitVector[firstIndex] == 0 )
+	  firstIndex++;
+	
+	for(j = i + 1; j < consensusBipLen; j++)
+	  {		    
+	    if((unsigned int)consensusBips[i]->amountTips < (unsigned int)consensusBips[j]->amountTips
+	       && issubset(consensusBips[i]->bitVector, consensusBips[j]->bitVector, vectorLen, firstIndex))
+	      { 	      
+		List 
+		  *elem = &(elems[highestId]); 
+		
+		int 
+		  *nmbr = &(intList[highestId]); 
+		
+		highestId++; 
+		
+		elem->value = calloc(1, sizeof(int));
+		
+		*nmbr = i; 
+		elem->value = nmbr; 
+		elem->next = (listOfDirectChildren[j])
+		  ?listOfDirectChildren[j]
+		  :NULL;
+		listOfDirectChildren[j] = elem;
+		hasAncestor[i] = TRUE;
+		break;
+	      }
+	  }
+      }    
+  }
 #endif
 
   /****************************************************************/
@@ -2423,6 +2464,12 @@ static void printSortedBips(entry **consensusBips, const int consensusBipLen, co
   free(printed);
   free(hasAncestor);
 
+#ifndef _USE_PTHREADS
+  free(elems);
+  free(intList);
+#endif
+
+
   /* here is a bug, when I try to free the memory on the veryBig (55K)
      dataset. When freeing the toplevel bips
      (listOfDirectChildren[consensusBipLen]), he complains of sth like
@@ -2447,7 +2494,7 @@ static void printSortedBips(entry **consensusBips, const int consensusBipLen, co
 void computeConsensusOnly(tree *tr, char *treeSetFileName, analdef *adef)
 {        
   hashtable 
-    *h = initHashTable(tr->mxtips * FC_INIT * 10);;
+    *h = initHashTable(tr->mxtips * FC_INIT * 10);
 
   hashNumberType
     entries = 0;
@@ -2674,9 +2721,11 @@ static void mre(hashtable *h, boolean icp, entry*** sbi, int* len, int which, in
 	  /*if(sbw[i]->supportFromTreeset[which] <= mr_thresh) */
 	    for(k = ((unsigned int)(*len)); k > 0; k--)
 	      {
-		//k indexes sbi
-		//j indexes sbw
-		//need to compare the two
+		/*
+		  k indexes sbi
+		  j indexes sbw
+		  need to compare the two
+		*/
 		
 		if(!compatible((*sbi)[k-1], sbw[i], vectorLength))		
 		  {

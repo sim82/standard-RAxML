@@ -3429,29 +3429,15 @@ static void getVects(tree *tr, unsigned char **tipX1, unsigned char **tipX2, dou
 {
   int 
     rateHet,
-    states = tr->partitionData[model].states;
-
-  int     
-    pNumber, 
-    qNumber;
+    states = tr->partitionData[model].states,    
+    pNumber = tr->td[0].ti[0].pNumber, 
+    qNumber = tr->td[0].ti[0].qNumber;
 
   if(tr->rateHetModel == CAT)
     rateHet = 1;
   else
     rateHet = 4;
-
-  if(tr->multiGene)
-    {
-      assert(tr->executeModel[model]);
-      pNumber = tr->td[model].ti[0].pNumber;
-      qNumber = tr->td[model].ti[0].qNumber;
-    }
-  else
-    {
-      pNumber = tr->td[0].ti[0].pNumber;
-      qNumber = tr->td[0].ti[0].qNumber;
-    }
-
+   
   *x1_start = (double*)NULL,
   *x2_start = (double*)NULL;
   *tipX1 = (unsigned char*)NULL,
@@ -3522,28 +3508,24 @@ void makenewzIterative(tree *tr)
 
   double
     *x1_start = (double*)NULL,
-    *x2_start = (double*)NULL;
+    *x2_start = (double*)NULL,
+    *x1_gapColumn = (double*)NULL,
+    *x2_gapColumn = (double*)NULL;
 
   unsigned char
     *tipX1,
-    *tipX2;
-
-  double
-    *x1_gapColumn = (double*)NULL,
-    *x2_gapColumn = (double*)NULL;
+    *tipX2; 
   
   unsigned int
     *x1_gap = (unsigned int*)NULL,
     *x2_gap = (unsigned int*)NULL;			      
-
  
-  if(tr->multiGene)
-    newviewIterativeMulti(tr);
-  else
-    newviewIterative(tr);
+  newviewIterative(tr);
 
   for(model = 0; model < tr->NumberOfModels; model++)
     {
+      /*printf("MNZIterative %d %d\n", model, tr->executeModel[model]);*/
+      
       if(tr->executeModel[model])
 	{
 	  int 
@@ -3732,14 +3714,26 @@ void makenewzIterative(tree *tr)
 
 void execCore(tree *tr, volatile double *_dlnLdlz, volatile double *_d2lnLdlz2)
 {
-  int model, branchIndex;
-  double lz;
+  int 
+    model, 
+    branchIndex;
+
+  double 
+    lz;
 
   _dlnLdlz[0]   = 0.0;
   _d2lnLdlz2[0] = 0.0;
 
+#ifdef _DEBUG_MULTI_EPA  
+  printf("MNZC: ");
+#endif  
+
   for(model = 0; model < tr->NumberOfModels; model++)
     {
+      
+#ifdef _DEBUG_MULTI_EPA  
+	  printf("%d ", tr->executeModel[model]);
+#endif
       if(tr->executeModel[model])
 	{
 	  int 
@@ -3966,6 +3960,10 @@ void execCore(tree *tr, volatile double *_dlnLdlz, volatile double *_d2lnLdlz2)
 	}
     }
 
+#ifdef _DEBUG_MULTI_EPA
+  printf("\n");
+#endif 	  
+
 }
 
 
@@ -3980,14 +3978,10 @@ static void topLevelMakenewz(tree *tr, double *z0, int _maxiter, double *result)
   boolean outerConverged[NUM_BRANCHES];
   boolean loopConverged;
 
-
-
   if(tr->multiBranch)
     numBranches = tr->NumberOfModels;
   else
     numBranches = 1;
-
-
 
   for(i = 0; i < numBranches; i++)
     {
@@ -3995,6 +3989,14 @@ static void topLevelMakenewz(tree *tr, double *z0, int _maxiter, double *result)
       maxiter[i] = _maxiter;
       outerConverged[i] = FALSE;
       tr->curvatOK[i]       = TRUE;
+    }
+
+  if(tr->perPartitionEPA)   
+    {
+      if(tr->multiBranch)
+	for(i = 0; i < numBranches; i++)
+	  if(!(tr->executeModel[i]))
+	    outerConverged[i] = TRUE;
     }
 
   do
@@ -4037,7 +4039,15 @@ static void topLevelMakenewz(tree *tr, double *z0, int _maxiter, double *result)
       else
 	{
 	  for(model = 0; model < tr->NumberOfModels; model++)
-	    tr->executeModel[model] = !tr->curvatOK[0];
+	    {
+	      if(tr->perPartitionEPA)
+		{
+		  if(tr->executeModel[model])
+		    tr->executeModel[model] = !tr->curvatOK[0];
+		}
+	      else
+		tr->executeModel[model] = !tr->curvatOK[0];
+	    }
 	}
 
 
@@ -4129,24 +4139,12 @@ static void topLevelMakenewz(tree *tr, double *z0, int _maxiter, double *result)
     }
   while (!loopConverged);
 
-
   for(model = 0; model < tr->NumberOfModels; model++)
     tr->executeModel[model] = TRUE;
 
   for(i = 0; i < numBranches; i++)
     result[i] = z[i];
 }
-
-
-
-
-
-
-
-
-
-
-
 
 #ifdef _USE_PTHREADS
 
@@ -4165,11 +4163,21 @@ static void sumClassify(tree *tr, int tipCase, double *_x1, double *_x2, unsigne
     *tipX1 = (unsigned char*)NULL,
     *tipX2 = (unsigned char*)NULL;
 
+#ifdef _DEBUG_MULTI_EPA
+  if(tr->threadID == THREAD_TO_DEBUG)
+    printf("MNZS: ");
+#endif
+
   for(model = 0; model < tr->NumberOfModels; model++)
     {
       int 
 	width = tr->partitionData[model].upper - tr->partitionData[model].lower;       
       
+#ifdef _DEBUG_MULTI_EPA
+      if(tr->threadID == THREAD_TO_DEBUG)
+	printf("%d", executeModel[model]);
+#endif       
+
       if(executeModel[model])
 	{
 	  double *sumBuffer = &tr->temporarySumBuffer[offsetCounter];
@@ -4298,6 +4306,10 @@ static void sumClassify(tree *tr, int tipCase, double *_x1, double *_x2, unsigne
       columnCounter += width;
       offsetCounter += width * tr->partitionData[model].states * tr->discreteRateCategories;
     } 
+#ifdef _DEBUG_MULTI_EPA
+  if(tr->threadID == THREAD_TO_DEBUG)
+    printf("\n");
+#endif
 }
 
 static void coreClassify(tree *tr, volatile double *_dlnLdlz, volatile double *_d2lnLdlz2, double *coreLZ, boolean *executeModel)
@@ -4311,12 +4323,27 @@ static void coreClassify(tree *tr, volatile double *_dlnLdlz, volatile double *_
 
   _dlnLdlz[0]   = 0.0;
   _d2lnLdlz2[0] = 0.0;
-
+  
+#ifdef _DEBUG_MULTI_EPA
+  if(tr->threadID == THREAD_TO_DEBUG)
+    printf("MNZC: ");
+#endif 
+  
   for(model = 0; model < tr->NumberOfModels; model++)
     {
       int 
 	width = tr->partitionData[model].upper - tr->partitionData[model].lower;
 
+      if(tr->multiBranch)
+	branchIndex = model;
+      else
+	branchIndex = 0;	
+
+     
+#ifdef _DEBUG_MULTI_EPA
+  if(tr->threadID == THREAD_TO_DEBUG)
+    printf("%d", executeModel[model]);
+#endif    
       if(executeModel[model])
 	{	  
 	  double 
@@ -4506,14 +4533,19 @@ static void coreClassify(tree *tr, volatile double *_dlnLdlz, volatile double *_
 	  _d2lnLdlz2[branchIndex] = _d2lnLdlz2[branchIndex] + d2lnLdlz2;
 	}
 
-      columnCounter += width;
+      columnCounter += width;      
       offsetCounter += width * tr->partitionData[model].states * tr->discreteRateCategories;
     }
+
+#ifdef _DEBUG_MULTI_EPA
+  if(tr->threadID == THREAD_TO_DEBUG)
+    printf("\n");
+#endif
 
 }
 
 void makenewzClassify(tree *tr, int _maxiter, double *result, double *z0, double *x1_start, double *x2_start, unsigned char *tipX1,  
-		      unsigned char *tipX2, int tipCase, boolean *partitionConverged)
+		      unsigned char *tipX2, int tipCase, boolean *partitionConverged, int insertion)
 {
   double   
     z[NUM_BRANCHES], 
@@ -4532,12 +4564,14 @@ void makenewzClassify(tree *tr, int _maxiter, double *result, double *z0, double
     curvatOK[NUM_BRANCHES],
     executeModel[NUM_BRANCHES];
 
+  
+
   if(tr->multiBranch)
     numBranches = tr->NumberOfModels;
   else
     numBranches = 1;
 
-
+  
 
   for(i = 0; i < numBranches; i++)
     {
@@ -4550,7 +4584,19 @@ void makenewzClassify(tree *tr, int _maxiter, double *result, double *z0, double
       else
 	executeModel[i] = TRUE;
     }
+  
+  if(tr->perPartitionEPA)    
+    {
+      setPartitionMask(tr, insertion, executeModel);
 
+      if(tr->multiBranch)
+	for(i = 0; i < numBranches; i++)
+	  if(!executeModel[i])
+	    outerConverged[i] = TRUE;
+    }
+
+      
+  
   do
     {
       for(i = 0; i < numBranches; i++)
@@ -4585,14 +4631,27 @@ void makenewzClassify(tree *tr, int _maxiter, double *result, double *z0, double
 	  for(model = 0; model < tr->NumberOfModels; model++)
 	    {
 	      if(executeModel[model])
-		executeModel[model] = !curvatOK[model];
-	      
+		executeModel[model] = !curvatOK[model];	      
 	    }
 	}
       else
-	{
+	{ 
+	 
 	  for(model = 0; model < tr->NumberOfModels; model++)
-	    executeModel[model] = !curvatOK[0];
+	    {
+	      if(tr->perPartitionEPA)
+		{		 
+		  if(executeModel[model])
+		    {
+		      executeModel[model] = !curvatOK[0];		  		    		     
+		    }
+		  /*else
+		    executeModel[model] = FALSE;*/
+		}
+	      else
+		executeModel[model] = !curvatOK[0];
+	    }
+	  
 	}      
 
       
@@ -4658,78 +4717,39 @@ void makenewzClassify(tree *tr, int _maxiter, double *result, double *z0, double
 
 void makenewzGeneric(tree *tr, nodeptr p, nodeptr q, double *z0, int maxiter, double *result, boolean mask)
 {
-  int i;
-  boolean originalExecute[NUM_BRANCHES];
+  int 
+    i;
 
-  if(tr->multiGene)
+  boolean 
+    originalExecute[NUM_BRANCHES];
+
+  tr->td[0].ti[0].pNumber = p->number;
+  tr->td[0].ti[0].qNumber = q->number;
+
+  for(i = 0; i < tr->numBranches; i++)
     {
-      int sum = 0;
+      originalExecute[i] =  tr->executeModel[i];
+      tr->td[0].ti[0].qz[i] =  z0[i];
 
-      for(i = 0; i < tr->numBranches; i++)      
-	{           
-	  if(mask)
-	    {
-	      if(tr->partitionConverged[i])
-		tr->executeModel[i] = FALSE;
-	      else
-		tr->executeModel[i] = TRUE;		
-	    }
-	}
-
-      assert(tr->numBranches == tr->NumberOfModels);      
-      for(i = 0; i < tr->numBranches; i++)   
-	sum += tr->executeModel[i];
-      assert(sum == 1);
-      assert(mask);
-      
-      for(i = 0; i < tr->NumberOfModels; i++)
-	{	 
-	  if(tr->executeModel[i])
-	    {
-	      tr->td[i].ti[0].pNumber = p->number;
-	      tr->td[i].ti[0].qNumber = q->number;
-	      tr->td[i].ti[0].qz[i] =  z0[i];
-	      tr->td[i].count = 1;
-
-	      if(!p->xs[i])
-		computeTraversalInfoMulti(p, &(tr->td[i].ti[0]), &(tr->td[i].count), tr->mxtips, i); 
-	      if(!q->xs[i])
-		computeTraversalInfoMulti(q, &(tr->td[i].ti[0]), &(tr->td[i].count), tr->mxtips, i);	     	     
-	    }	
+      if(mask)
+	{	     
+	  if(tr->partitionConverged[i])
+	    tr->executeModel[i] = FALSE;
 	  else
-	    tr->td[i].count = 0;
-	}  
-    }
-  else
-    {
-      tr->td[0].ti[0].pNumber = p->number;
-      tr->td[0].ti[0].qNumber = q->number;
-      for(i = 0; i < tr->numBranches; i++)
-	{
-	  originalExecute[i] =  tr->executeModel[i];
-	  tr->td[0].ti[0].qz[i] =  z0[i];
-	  if(mask)
-	    {
-	      if(tr->partitionConverged[i])
-		tr->executeModel[i] = FALSE;
-	      else
-		tr->executeModel[i] = TRUE;
-	    }
+	    tr->executeModel[i] = TRUE;
 	}
-      
-      tr->td[0].count = 1;
-      
-      if(!p->x)
-	computeTraversalInfo(p, &(tr->td[0].ti[0]), &(tr->td[0].count), tr->mxtips, tr->numBranches);
-      if(!q->x)
-	computeTraversalInfo(q, &(tr->td[0].ti[0]), &(tr->td[0].count), tr->mxtips, tr->numBranches);
     }
+    
+  tr->td[0].count = 1;
+    
+  if(!p->x)
+    computeTraversalInfo(p, &(tr->td[0].ti[0]), &(tr->td[0].count), tr->mxtips, tr->numBranches);
 
-
-  
+  if(!q->x)
+    computeTraversalInfo(q, &(tr->td[0].ti[0]), &(tr->td[0].count), tr->mxtips, tr->numBranches);
+      
   topLevelMakenewz(tr, z0, maxiter, result);
- 
-
+  
   for(i = 0; i < tr->numBranches; i++)
       tr->executeModel[i] = TRUE;
 }
@@ -4738,7 +4758,8 @@ void makenewzGeneric(tree *tr, nodeptr p, nodeptr q, double *z0, int maxiter, do
 
 void makenewzGenericDistance(tree *tr, int maxiter, double *z0, double *result, int taxon1, int taxon2)
 {
-  int i;
+  int 
+    i;
 
   assert(taxon1 != taxon2);
   assert(0 < taxon1 && taxon1 <= tr->mxtips);

@@ -694,8 +694,7 @@ static void traversalInfoAncestralRoot(nodeptr p, traversalInfo *ti, int *counte
 void newviewGenericAncestral (tree *tr, nodeptr p, boolean atRoot)
 {  
   if(atRoot)
-    {
-      assert(!tr->multiGene);
+    {     
       tr->td[0].count = 1;
       traversalInfoAncestralRoot(p, &(tr->td[0].ti[0]), &(tr->td[0].count), tr->mxtips, tr->numBranches);
       
@@ -713,21 +712,17 @@ void newviewGenericAncestral (tree *tr, nodeptr p, boolean atRoot)
       if(isTip(p->number, tr->mxtips))
 	return;
       
-      if(tr->multiGene)       
-	assert(0);     
-      else
+     
+      tr->td[0].count = 1;
+      computeTraversalInfo(p, &(tr->td[0].ti[0]), &(tr->td[0].count), tr->mxtips, tr->numBranches);
+      
+      if(tr->td[0].count > 1)
 	{
-	  tr->td[0].count = 1;
-	  computeTraversalInfo(p, &(tr->td[0].ti[0]), &(tr->td[0].count), tr->mxtips, tr->numBranches);
-	  
-	  if(tr->td[0].count > 1)
-	    {
 #ifdef _USE_PTHREADS
-	      masterBarrier(THREAD_NEWVIEW_ANCESTRAL, tr);
+	  masterBarrier(THREAD_NEWVIEW_ANCESTRAL, tr);
 #else
-	      newviewIterativeAncestral(tr);
-#endif
-	    }
+	  newviewIterativeAncestral(tr);
+#endif	
 	}
     }
 }
@@ -791,7 +786,7 @@ static void computeAncestralRec(tree *tr, nodeptr p, int *counter, FILE *probsFi
 	states = tr->partitionData[model].states;
 #ifdef _USE_PTHREADS
       double
-	*ancestral = tr->ancestralStates;
+	*ancestral = &tr->ancestralStates[accumulatedOffset];
 #else
       double 
 	*ancestral = tr->partitionData[model].sumBuffer;
@@ -943,7 +938,7 @@ static char *ancestralTree(char *treestr, tree *tr)
   return  treestr;
 }
 
-void computeAncestralStates(tree *tr, double referenceLikelihood, analdef *adef)
+void computeAncestralStates(tree *tr, double referenceLikelihood)
 {
   int 
     counter = 0;
@@ -961,8 +956,6 @@ void computeAncestralStates(tree *tr, double referenceLikelihood, analdef *adef)
 #ifdef _USE_PTHREADS
   tr->ancestralStates = (double*)malloc(getContiguousVectorLength(tr) * sizeof(double));
 #endif
-
-  /*  assert(!adef->compressPatterns);*/
 
   strcpy(ancestralProbsFileName,         workdir);
   strcpy(ancestralStatesFileName,         workdir);

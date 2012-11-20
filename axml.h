@@ -84,6 +84,8 @@
 
 #define LIKELIHOOD_EPSILON 0.0000001
 
+#define THREAD_TO_DEBUG 1
+
 #define AA_SCALE 10.0
 #define AA_SCALE_PLUS_EPSILON 10.001
 
@@ -155,8 +157,8 @@
 #define PointGamma(prob,alpha,beta)  PointChi2(prob,2.0*(alpha))/(2.0*(beta))
 
 #define programName        "RAxML"
-#define programVersion     "7.3.2"
-#define programDate        "June 2012"
+#define programVersion     "7.4.1"
+#define programDate        "November 16 2012"
 
 
 #define  TREE_EVALUATION            0
@@ -176,7 +178,6 @@
 #define  COMPUTE_RF_DISTANCE        20
 #define  MORPH_CALIBRATOR           21
 #define  CONSENSUS_ONLY             22
-#define  MESH_TREE_SEARCH           23
 #define  FAST_SEARCH                24        
 #define  EPA_SITE_SPECIFIC_BIAS     27
 #define  SH_LIKE_SUPPORTS           28
@@ -464,10 +465,7 @@ typedef struct
 
 
 typedef  struct noderec
-{
-  unsigned int    isPresent[NUM_BRANCHES / MASK_LENGTH];
-  struct noderec  *backs[NUM_BRANCHES];
-  char            xs[NUM_BRANCHES];
+{  
   branchInfo      *bInf;
   double           z[NUM_BRANCHES];
   struct noderec  *next;
@@ -581,7 +579,7 @@ typedef struct {
   
 
   unsigned int    *globalScaler;
-  double          *globalScalerDouble;
+ 
   int    *perSiteAAModel;
   int    *wgt;
   int    *invariant;
@@ -600,6 +598,8 @@ typedef struct {
 
   size_t parsimonyLength;
   parsimonyNumber *parsVect; 
+
+  double brLenScaler;
 
 } pInfo;
 
@@ -651,6 +651,8 @@ typedef  struct  {
 
   int numberOfBranches;
   int    numberOfTipsForInsertion;
+  int    *readPartition;
+  boolean perPartitionEPA;
   int    *inserts;
   int    branchCounter;
   
@@ -678,7 +680,7 @@ typedef  struct  {
   double           *perPartitionLH;
   double           *storedPerPartitionLH;
 
-  traversalData td[NUM_BRANCHES];
+  traversalData td[1];
 
   unsigned int *parsimonyScore;
 
@@ -696,22 +698,14 @@ typedef  struct  {
   int              consensusType;
   double           wcThreshold;
 
-  double           brLenScaler;
-  double          *storedBrLens;
-
-  int              multiGene;
-
-  nodeptr          startVector[NUM_BRANCHES];
-
-  nodeptr          removeNodes[NUM_BRANCHES];
-  nodeptr          leftNodes[NUM_BRANCHES];
-  nodeptr          rightNodes[NUM_BRANCHES]; 
-  nodeptr          storedBacks[NUM_BRANCHES];
-  lhList          *likelihoodList[NUM_BRANCHES];
  
-  double           zLeft[NUM_BRANCHES];
-  double           zRight[NUM_BRANCHES];
-  double           zDown[NUM_BRANCHES];
+  double          *storedBrLens;
+  boolean         useBrLenScaler;
+  
+
+ 
+ 
+ 
 
   boolean          useFastScaling;
  
@@ -966,6 +960,9 @@ typedef struct {
     boolean          improved;
     } bestlist;
 
+#define PHYLIP 0
+#define FASTA  1
+
 typedef  struct {
   int              categories;
   int              model;
@@ -1010,12 +1007,13 @@ typedef  struct {
   double        externalAAMatrix[420];
   boolean       useFloat;
   boolean       readTaxaOnly;
-  int           meshSearch;  
   boolean       veryFast;
   boolean       useBinaryModelFile;
   boolean       leaveDropMode;
   int           slidingWindowSize;
   boolean       checkForUndeterminedSequences;
+  boolean       useQuartetGrouping;
+  int           alignmentFileType;
 } analdef;
 
 
@@ -1061,14 +1059,8 @@ extern void computeRogueTaxa(tree *tr, char* treeSetFileName, analdef *adef);
 extern unsigned int precomputed16_bitcount(unsigned int n);
 
 
-extern double evaluateGenericMulti (tree *tr, nodeptr p, int model);
-extern void setupPointerMesh(tree *tr);
-extern void determineFullTraversalMulti(nodeptr p, tree *tr);
-extern void computeTraversalInfoMulti(nodeptr p, traversalInfo *ti, int *counter, int maxTips, int model);
-extern double evaluateIterativeMulti(tree *, boolean writeVector);
-extern void newviewIterativeMulti (tree *tr);
-extern void getxsnode (nodeptr p, int model);
-extern void findNext(nodeptr p, tree *tr, nodeptr *result);
+
+
 
 
 
@@ -1076,7 +1068,7 @@ extern void findNext(nodeptr p, tree *tr, nodeptr *result);
 extern partitionLengths * getPartitionLengths(pInfo *p);
 extern boolean getSmoothFreqs(int dataType);
 extern const unsigned int *getBitVector(int dataType);
-extern int getUndetermined(int dataType);
+extern unsigned char getUndetermined(int dataType);
 extern int getStates(int dataType);
 extern char getInverseMeaning(int dataType, unsigned char state);
 extern void printModelParams(tree *tr, analdef *adef);
@@ -1171,8 +1163,6 @@ extern void computeBIGRAPID ( tree *tr, analdef *adef, boolean estimateModel);
 extern boolean treeEvaluate ( tree *tr, double smoothFactor );
 extern boolean treeEvaluatePartition ( tree *tr, double smoothFactor, int model );
 
-extern void meshTreeSearch(tree *tr, analdef *adef, int thorough);
-
 extern void initTL ( topolRELL_LIST *rl, tree *tr, int n );
 extern void freeTL ( topolRELL_LIST *rl);
 extern void restoreTL ( topolRELL_LIST *rl, tree *tr, int n );
@@ -1191,7 +1181,7 @@ extern char *Tree2String ( char *treestr, tree *tr, nodeptr p, boolean printBran
 extern void printTreePerGene(tree *tr, analdef *adef, char *fileName, char *permission);
 
 
-
+extern int treeFindTipName(FILE *fp, tree *tr, boolean check);
 extern int treeReadLen (FILE *fp, tree *tr, boolean readBranches, boolean readNodeLabels, boolean topologyOnly, analdef *adef, boolean completeTree);
 extern boolean treeReadLenMULT ( FILE *fp, tree *tr, analdef *adef );
 
@@ -1307,7 +1297,7 @@ extern void treeEvaluateProgressive(tree *tr);
 
 extern void testGapped(tree *tr);
 
-extern boolean issubset(unsigned int* bipA, unsigned int* bipB, unsigned int vectorLen);
+extern boolean issubset(unsigned int* bipA, unsigned int* bipB, unsigned int vectorLen, unsigned int firstIndex);
 extern boolean compatible(entry* e1, entry* e2, unsigned int bvlen);
 
 extern void nniSmooth(tree *tr, nodeptr p, int maxtimes);
@@ -1318,7 +1308,7 @@ extern void updatePerSiteRates(tree *tr, boolean scaleRates);
 
 extern void newviewIterativeAncestral(tree *tr);
 extern void newviewGenericAncestral(tree *tr, nodeptr p, boolean atRoot);
-extern void computeAncestralStates(tree *tr, double referenceLikelihood, analdef *adef);
+extern void computeAncestralStates(tree *tr, double referenceLikelihood);
 extern void makeP_Flex(double z1, double z2, double *rptr, double *EI,  double *EIGN, int numberOfCategories, double *left, double *right, const int numStates);
 
 #ifdef _WAYNE_MPI
@@ -1327,22 +1317,24 @@ extern boolean computeBootStopMPI(tree *tr, char *bootStrapFileName, analdef *ad
 
 #endif
 
-
+extern void setPartitionMask(tree *tr, int i, boolean *executeModel);
+extern void resetPartitionMask(tree *tr, boolean *executeModel);
 #ifdef _USE_PTHREADS
 
 extern size_t getContiguousVectorLength(tree *tr);
 
 extern void makenewzClassify(tree *tr, int maxiter, double *result, double *z0, double *x1_start, double *x2_start,
-			     unsigned char *tipX1,  unsigned char *tipX2, int tipCase, boolean *partitionConverged);
+			     unsigned char *tipX1,  unsigned char *tipX2, int tipCase, boolean *partitionConverged, int insertion);
 
-extern void    newviewClassify(tree *tr, branchInfo *bInf, double *z);
+extern void newviewMultiGrain(tree *tr,  double *x1, double *x2, double *x3, int *_ex1, int *_ex2, int *_ex3, unsigned char *_tipX1, unsigned char *_tipX2, 
+			      int tipCase, double *_pz, double *_qz, int insertion);
 
 extern void addTraverseRobIterative(tree *tr, int branchNumber);
 extern void insertionsParsimonyIterative(tree *tr, int branchNumber);
 
-extern void newviewClassifySpecial(tree *tr, double *x1_start, double *x2_start, double *x3_start, int *ex1, int *ex2, int *ex3,
-				   unsigned char *tipX1,  unsigned char *tipX2, int tipCase, double *pz, double *qz);
-extern double evalCL(tree *tr, double *x2, int *ex2, unsigned char *tip, double *pz);
+extern void newviewClassify(tree *tr, branchInfo *b, double *z, int insertion);
+
+extern double evalCL(tree *tr, double *x2, int *ex2, unsigned char *tip, double *pz, int insertion);
 
 extern void testInsertThoroughIterative(tree *tr, int branchNumber);
 
@@ -1459,4 +1451,13 @@ void newviewGTRGAMMAPROT_AVX(int tipCase,
 			     int *ex3, unsigned char *tipX1, unsigned char *tipX2, int n, 
 			     double *left, double *right, int *wgt, int *scalerIncrement, const boolean useFastScaling);
 
+void newviewGTRCATPROT_AVX(int tipCase, double *extEV,
+			       int *cptr,
+			       double *x1, double *x2, double *x3, double *tipVector,
+			       int *ex3, unsigned char *tipX1, unsigned char *tipX2,
+			   int n, double *left, double *right, int *wgt, int *scalerIncrement, const boolean useFastScaling);
+
 #endif
+
+
+
