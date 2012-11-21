@@ -629,7 +629,6 @@ static ssize_t getline( char **lineptr, size_t *n, FILE *h ) {
   }
 
   size_t ins_ptr = 0;
-  int c;
 
 
   while( 1 ) {
