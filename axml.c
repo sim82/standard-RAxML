@@ -611,23 +611,26 @@ void hookupDefault (nodeptr p, nodeptr q, int numBranches)
 void getline_insptr_valid( char **lineptr, size_t *n, size_t ins_ptr ) {
   const size_t n_inc = 1024;
 
+
   if( ins_ptr >= *n ) {
+    assert( *n <= (SSIZE_MAX - n_inc) );
+
     *n += n_inc;
-    *lineptr = realloc( *lineptr, *n );
+    *lineptr = (char*)realloc( *lineptr, *n );
     assert( *lineptr != 0 );
   }
 }
 
 static ssize_t getline( char **lineptr, size_t *n, FILE *h ) {
+  assert( h != NULL );
 
   if( *lineptr == NULL ) {
     *n = 0;
   }
 
   size_t ins_ptr = 0;
-  size_t num_read = 0;
   int c;
- 
+
 
   while( 1 ) {
     int c = fgetc(h);
@@ -635,33 +638,34 @@ static ssize_t getline( char **lineptr, size_t *n, FILE *h ) {
 /* handle EOF: if no character has been read on the current line throw an error. Otherwise treat as end-of-line. Don't know if this is correct, as I don't have the POSIX standard and the linux manpage is unclear. */
     if( c == EOF ) {
       if( ins_ptr == 0 ) {
-      	return -1;
+        return -1;
       } else {
         break;
       }
     }
 
-    ++num_read;
-    if( c == '\n' ) {
-      break;
-    } else if( c == '\r' ) {
+    if( c == '\r' ) {
       /* windows line-end: must be followed by a '\n'. Don't tolerate anything else. */
       c = fgetc(h);
       assert( c == '\n' );
-      break;
     }
 
-    /* normal character: insert into buffer */
+
+    /* insert character (including '\n') into buffer */
     getline_insptr_valid( lineptr, n, ins_ptr );
-    *lineptr[ins_ptr] = c;
+    (*lineptr)[ins_ptr] = c;
     ++ins_ptr;
+
+    if( c == '\n' ) {
+      break;
+    }
   }
 
 /* null-terminate */
   getline_insptr_valid( lineptr, n, ins_ptr );
-  *lineptr[ins_ptr] = 0;
+  (*lineptr)[ins_ptr] = 0;
 
-  return num_read;
+  return ins_ptr;
 }
 
 #endif
