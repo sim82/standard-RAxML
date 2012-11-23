@@ -604,6 +604,72 @@ void hookupDefault (nodeptr p, nodeptr q, int numBranches)
 
 /***********************reading and initializing input ******************/
 
+
+/* 
+ * SIM: drop-in replacement getline implementation (getline is gnu/POSIX-2008 only, ann not available on windows mac osx) 
+ *WARNING: the following getline implementation is still quite untested 
+ */
+
+static void rax_getline_insptr_valid( char **lineptr, size_t *n, size_t ins_ptr ) {
+  const size_t n_inc = 1024;
+
+
+  if( ins_ptr >= *n ) {
+    assert( *n <= (SSIZE_MAX - n_inc) );
+
+    *n += n_inc;
+    *lineptr = (char*)realloc( *lineptr, *n );
+    assert( *lineptr != 0 );
+  }
+}
+
+static ssize_t rax_getline( char **lineptr, size_t *n, FILE *h ) {
+  /* this implementation does not conform to the standard regarding error checking (i.e., asserts on errors ) */
+  assert( h != NULL );
+
+  if( *lineptr == NULL ) {
+    *n = 0;
+  }
+
+  size_t ins_ptr = 0;
+
+
+  while( 1 ) {
+    int c = fgetc(h);
+
+/* handle EOF: if no character has been read on the current line throw an error. Otherwise treat as end-of-line. Don't know if this is correct, as I don't have the POSIX standard and the linux manpage is unclear. */
+    if( c == EOF ) {
+      if( ins_ptr == 0 ) {
+        return -1;
+      } else {
+        break;
+      }
+    }
+
+    if( c == '\r' ) {
+      /* windows line-end: must be followed by a '\n'. Don't tolerate anything else. */
+      c = fgetc(h);
+      assert( c == '\n' );
+    }
+
+
+    /* insert character (including '\n') into buffer */
+    rax_getline_insptr_valid( lineptr, n, ins_ptr );
+    (*lineptr)[ins_ptr] = c;
+    ++ins_ptr;
+
+    if( c == '\n' ) {
+      break;
+    }
+  }
+
+/* null-terminate */
+  rax_getline_insptr_valid( lineptr, n, ins_ptr );
+  (*lineptr)[ins_ptr] = 0;
+
+  return ins_ptr;
+}
+
 static void getnums (rawdata *rdta, analdef *adef)
 {
   if(fscanf(INFILE, "%d %d", & rdta->numsp, & rdta->sites) != 2)
@@ -629,7 +695,7 @@ static void getnums (rawdata *rdta, analdef *adef)
 	  printf("it will now try to parse it as FASTA file\n\n");
 	}
 
-      while((read = getline(&line, &len, INFILE)) != -1) 
+      while((read = rax_getline(&line, &len, INFILE)) != -1) 
 	{
 	  ssize_t
 	    i = 0;
@@ -1432,7 +1498,7 @@ static void parseFasta(analdef *adef, rawdata *rdta, tree *tr)
       sites;
     
          
-    while((read = getline(&line, &len, INFILE)) != -1) 
+    while((read = rax_getline(&line, &len, INFILE)) != -1) 
 	{
 	  ssize_t
 	    i = 0;
