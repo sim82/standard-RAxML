@@ -605,10 +605,13 @@ void hookupDefault (nodeptr p, nodeptr q, int numBranches)
 
 /***********************reading and initializing input ******************/
 
-#ifdef __MINGW32__
-/* SIM: WARNING: the following getline implementation is completely untested!!!! */
 
-void getline_insptr_valid( char **lineptr, size_t *n, size_t ins_ptr ) {
+/* 
+ * SIM: drop-in replacement getline implementation (getline is gnu/POSIX-2008 only, ann not available on windows mac osx) 
+ *WARNING: the following getline implementation is still quite untested 
+ */
+
+static void rax_getline_insptr_valid( char **lineptr, size_t *n, size_t ins_ptr ) {
   const size_t n_inc = 1024;
 
 
@@ -621,7 +624,8 @@ void getline_insptr_valid( char **lineptr, size_t *n, size_t ins_ptr ) {
   }
 }
 
-static ssize_t getline( char **lineptr, size_t *n, FILE *h ) {
+static ssize_t rax_getline( char **lineptr, size_t *n, FILE *h ) {
+  /* this implementation does not conform to the standard regarding error checking (i.e., asserts on errors ) */
   assert( h != NULL );
 
   if( *lineptr == NULL ) {
@@ -651,7 +655,7 @@ static ssize_t getline( char **lineptr, size_t *n, FILE *h ) {
 
 
     /* insert character (including '\n') into buffer */
-    getline_insptr_valid( lineptr, n, ins_ptr );
+    rax_getline_insptr_valid( lineptr, n, ins_ptr );
     (*lineptr)[ins_ptr] = c;
     ++ins_ptr;
 
@@ -661,13 +665,11 @@ static ssize_t getline( char **lineptr, size_t *n, FILE *h ) {
   }
 
 /* null-terminate */
-  getline_insptr_valid( lineptr, n, ins_ptr );
+  rax_getline_insptr_valid( lineptr, n, ins_ptr );
   (*lineptr)[ins_ptr] = 0;
 
   return ins_ptr;
 }
-
-#endif
 
 static void getnums (rawdata *rdta, analdef *adef)
 {
@@ -694,7 +696,7 @@ static void getnums (rawdata *rdta, analdef *adef)
 	  printf("it will now try to parse it as FASTA file\n\n");
 	}
 
-      while((read = getline(&line, &len, INFILE)) != -1) 
+      while((read = rax_getline(&line, &len, INFILE)) != -1) 
 	{
 	  ssize_t
 	    i = 0;
@@ -1497,7 +1499,7 @@ static void parseFasta(analdef *adef, rawdata *rdta, tree *tr)
       sites;
     
          
-    while((read = getline(&line, &len, INFILE)) != -1) 
+    while((read = rax_getline(&line, &len, INFILE)) != -1) 
 	{
 	  ssize_t
 	    i = 0;
